@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+seen_vehicles.json
+lanewatch_state.json
+lanewatch.log
+.Rhistory
+.claude/
