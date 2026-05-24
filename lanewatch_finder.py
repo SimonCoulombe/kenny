@@ -21,6 +21,7 @@ Usage:
 
 import argparse
 import json
+import sys
 import time
 from dataclasses import dataclass
 from datetime import date
@@ -307,7 +308,7 @@ def print_lanewatch_report(
     print(f"{'═' * 68}\n")
 
 
-def print_personal_report(results: dict[str, list[dict]]) -> None:
+def print_personal_report(results: dict[str, list[dict]], check_trim: bool = False) -> None:
     def by_new_then_date(v: dict):
         return (not v["is_new"], v["date_added"])
 
@@ -320,7 +321,7 @@ def print_personal_report(results: dict[str, list[dict]]) -> None:
         print(f"  {label}  —  {count} at yard{'s' if count != 1 else ''}\n")
         if vehicles:
             for v in sorted(vehicles, key=by_new_then_date):
-                print(fmt_vehicle(v, show_trim=False))
+                print(fmt_vehicle(v, show_trim=check_trim))
                 print()
         else:
             print("    (none found)\n")
@@ -348,17 +349,17 @@ def scan_lanewatch(
     for branch_name, branch_id in branches.items():
         for target in TARGETS:
             print(f"  {branch_name} / {target.model} ({target.year_min}–{target.year_max}) ...",
-                  end=" ", flush=True)
+                  end=" ", flush=True, file=sys.stderr)
             try:
                 vehicles = fetch_inventory(
                     session, branch_id, target.model, target.year_min, target.year_max
                 )
                 time.sleep(0.4)
             except Exception as e:
-                print(f"ERROR: {e}")
+                print(f"ERROR: {e}", file=sys.stderr)
                 continue
 
-            print(f"{len(vehicles)} found")
+            print(f"{len(vehicles)} found", file=sys.stderr)
 
             for v in vehicles:
                 is_new = v["slug"] not in seen
@@ -388,9 +389,10 @@ def scan_lanewatch(
 
 
 def scan_personal(
-    branches: dict[str, str],
-    new_only: bool,
-    seen:     set[str],
+    branches:   dict[str, str],
+    new_only:   bool,
+    check_trim: bool,
+    seen:       set[str],
 ) -> set[str]:
     session = get_session()
     all_seen_slugs: set[str] = set()
@@ -399,17 +401,17 @@ def scan_personal(
     for branch_name, branch_id in branches.items():
         for pt in PERSONAL_TARGETS:
             print(f"  [my cars] {branch_name} / {pt.model} ({pt.year_min}–{pt.year_max}) ...",
-                  end=" ", flush=True)
+                  end=" ", flush=True, file=sys.stderr)
             try:
                 vehicles = fetch_inventory(
                     session, branch_id, pt.model, pt.year_min, pt.year_max, brand=pt.make
                 )
                 time.sleep(0.4)
             except Exception as e:
-                print(f"ERROR: {e}")
+                print(f"ERROR: {e}", file=sys.stderr)
                 continue
 
-            print(f"{len(vehicles)} found")
+            print(f"{len(vehicles)} found", file=sys.stderr)
 
             for v in vehicles:
                 is_new = v["slug"] not in seen
@@ -418,9 +420,12 @@ def scan_personal(
                 all_seen_slugs.add(v["slug"])
                 if new_only and not is_new:
                     continue
+                if check_trim:
+                    v["trim_raw"] = fetch_trim(session, v["url"])
+                    time.sleep(0.4)
                 results[pt.label].append(v)
 
-    print_personal_report(results)
+    print_personal_report(results, check_trim=check_trim)
     return all_seen_slugs
 
 # ---------------------------------------------------------------------------
@@ -451,8 +456,8 @@ def main() -> None:
         return
 
     branches = {args.branch: BRANCHES[args.branch]} if args.branch else BRANCHES
-    print(f"Kenny U-Pull Scanner | {date.today()} | branches: {', '.join(branches)}")
-    print(f"check-trim: {args.check_trim} | new-only: {args.new_only}\n")
+    print(f"Kenny U-Pull Scanner | {date.today()} | branches: {', '.join(branches)}", file=sys.stderr)
+    print(f"check-trim: {args.check_trim} | new-only: {args.new_only}\n", file=sys.stderr)
 
     seen = load_seen()
 
@@ -466,6 +471,7 @@ def main() -> None:
     personal_slugs = scan_personal(
         branches=branches,
         new_only=args.new_only,
+        check_trim=args.check_trim,
         seen=seen,
     )
 
