@@ -338,7 +338,7 @@ def scan_lanewatch(
     new_only:   bool,
     show_wrong: bool,
     seen:       set[str],
-) -> set[str]:
+) -> tuple[list[dict], list[dict], list[dict], set[str]]:
     session = get_session()
     all_seen_slugs: set[str] = set()
 
@@ -384,8 +384,7 @@ def scan_lanewatch(
 
     if not new_only:
         save_state(confirmed, unknown, wrong)
-    print_lanewatch_report(confirmed, unknown, wrong, show_wrong, check_trim)
-    return all_seen_slugs
+    return confirmed, unknown, wrong, all_seen_slugs
 
 
 def scan_personal(
@@ -393,7 +392,7 @@ def scan_personal(
     new_only:   bool,
     check_trim: bool,
     seen:       set[str],
-) -> set[str]:
+) -> tuple[dict[str, list[dict]], set[str]]:
     session = get_session()
     all_seen_slugs: set[str] = set()
     results: dict[str, list[dict]] = {pt.label: [] for pt in PERSONAL_TARGETS}
@@ -425,8 +424,101 @@ def scan_personal(
                     time.sleep(0.4)
                 results[pt.label].append(v)
 
-    print_personal_report(results, check_trim=check_trim)
-    return all_seen_slugs
+    return results, all_seen_slugs
+
+# ---------------------------------------------------------------------------
+# HTML report
+# ---------------------------------------------------------------------------
+
+def _html_vehicle_card(v: dict, accent: str, show_trim: bool) -> str:
+    new_badge = (
+        '<span style="background:#f59e0b;color:#fff;font-size:11px;font-weight:bold;'
+        'padding:2px 7px;border-radius:3px;margin-right:6px;">★ NEW</span>'
+        if v["is_new"] else ""
+    )
+    trim_str = f' <span style="color:#666;font-size:13px;">[{v["trim_raw"]}]</span>' if show_trim and v.get("trim_raw") else ""
+    branch_label = v["branch_name"].replace("st-aug", "St-Augustin").replace("levis", "Lévis")
+    return (
+        f'<div style="border:1px solid #e2e8f0;border-left:4px solid {accent};'
+        f'border-radius:4px;padding:12px 16px;margin-bottom:8px;">'
+        f'<div style="margin-bottom:4px;">{new_badge}'
+        f'<strong style="font-size:15px;">{v["year"]} {v["make"].title()} {v["model"].title()}</strong>'
+        f'{trim_str}</div>'
+        f'<div style="font-size:13px;color:#555;margin-bottom:6px;">'
+        f'Row {v["row"]} &nbsp;·&nbsp; {v["date_added"]} &nbsp;·&nbsp; {branch_label}</div>'
+        f'<a href="{v["url"]}" style="font-size:13px;color:#2563eb;text-decoration:none;">'
+        f'View on Kenny U-Pull →</a>'
+        f'</div>'
+    )
+
+
+def generate_html_report(
+    confirmed:  list[dict],
+    unknown:    list[dict],
+    personal:   dict[str, list[dict]],
+    check_trim: bool,
+) -> str:
+    def by_new_then_date(v: dict):
+        return (not v["is_new"], v["date_added"])
+
+    sections = []
+
+    if confirmed:
+        cards = "".join(_html_vehicle_card(v, "#16a34a", show_trim=True)
+                        for v in sorted(confirmed, key=by_new_then_date))
+        sections.append(
+            f'<h2 style="font-size:15px;color:#16a34a;margin:0 0 10px;">'
+            f'✓ Confirmed LaneWatch — {len(confirmed)} vehicle{"s" if len(confirmed)!=1 else ""}</h2>'
+            + cards
+        )
+
+    if unknown:
+        cards = "".join(_html_vehicle_card(v, "#d97706", show_trim=False)
+                        for v in sorted(unknown, key=by_new_then_date))
+        sections.append(
+            f'<h2 style="font-size:15px;color:#d97706;margin:0 0 10px;">'
+            f'? Trim unknown — check in person — {len(unknown)} vehicle{"s" if len(unknown)!=1 else ""}</h2>'
+            + cards
+        )
+
+    personal_cards = []
+    for label, vehicles in personal.items():
+        if not vehicles:
+            personal_cards.append(
+                f'<p style="font-size:14px;font-weight:bold;margin:12px 0 4px;">{label}</p>'
+                f'<p style="font-size:13px;color:#888;margin:0 0 10px;">(none found)</p>'
+            )
+        else:
+            cards = "".join(_html_vehicle_card(v, "#2563eb", show_trim=check_trim)
+                            for v in sorted(vehicles, key=by_new_then_date))
+            personal_cards.append(
+                f'<p style="font-size:14px;font-weight:bold;margin:12px 0 6px;">{label}</p>'
+                + cards
+            )
+
+    if personal_cards:
+        sections.append(
+            '<h2 style="font-size:15px;color:#1d4ed8;margin:0 0 10px;">My Cars — Parts Availability</h2>'
+            + "".join(personal_cards)
+        )
+
+    body = '<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">'.join(sections)
+
+    return (
+        '<!DOCTYPE html><html><head><meta charset="UTF-8"></head>'
+        '<body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,Helvetica,sans-serif;">'
+        '<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:20px 10px;">'
+        '<table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;'
+        'overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">'
+        '<tr><td style="background:#1a1a2e;padding:20px 24px;">'
+        '<h1 style="margin:0;font-size:20px;color:#fff;">🔍 Kenny U-Pull Scanner</h1>'
+        f'<p style="margin:4px 0 0;color:#8888aa;font-size:13px;">{date.today()}</p>'
+        '</td></tr>'
+        f'<tr><td style="padding:20px 24px;">{body}</td></tr>'
+        '</table></td></tr></table>'
+        '</body></html>'
+    )
+
 
 # ---------------------------------------------------------------------------
 # CLI
@@ -444,6 +536,8 @@ def main() -> None:
                    help="Also show vehicles with confirmed wrong trim")
     p.add_argument("--show-saved", action="store_true",
                    help="Print last saved LaneWatch scan without network requests")
+    p.add_argument("--html", action="store_true",
+                   help="Output HTML instead of plain text (for email)")
     args = p.parse_args()
 
     if args.show_saved:
@@ -461,14 +555,14 @@ def main() -> None:
 
     seen = load_seen()
 
-    lw_slugs = scan_lanewatch(
+    confirmed, unknown, wrong, lw_slugs = scan_lanewatch(
         branches=branches,
         check_trim=args.check_trim,
         new_only=args.new_only,
         show_wrong=args.show_wrong,
         seen=seen,
     )
-    personal_slugs = scan_personal(
+    personal, personal_slugs = scan_personal(
         branches=branches,
         new_only=args.new_only,
         check_trim=args.check_trim,
@@ -476,6 +570,12 @@ def main() -> None:
     )
 
     save_seen(seen | lw_slugs | personal_slugs)
+
+    if args.html:
+        print(generate_html_report(confirmed, unknown, personal, args.check_trim))
+    else:
+        print_lanewatch_report(confirmed, unknown, wrong, args.show_wrong, args.check_trim)
+        print_personal_report(personal, check_trim=args.check_trim)
 
 
 if __name__ == "__main__":
