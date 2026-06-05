@@ -1,7 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")"
-output=$(.venv/bin/python lanewatch_finder.py --new-only --check-trim --html 2>>lanewatch.log)
+output=$(.venv/bin/python lanewatch_finder.py --check-trim --html --show-wrong 2>>lanewatch.log)
+echo "$output" > report.html
 if echo "$output" | grep -q '★ NEW'; then
     new_count=$(echo "$output" | grep -c '★ NEW')
     echo "$output" | mail \
