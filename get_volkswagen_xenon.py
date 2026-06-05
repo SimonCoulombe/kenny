@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
 """
-VW xenon headlight scanner — 2013+ Volkswagen.
+VW xenon headlight scanner — 2014+ Volkswagen.
 
 Per-model xenon rules (NHTSA trim required unless noted):
   CC      — always flag regardless of trim
   Golf R  — always flag regardless of trim
-  GLI     — always flag regardless of trim
-  Golf    — Autobahn, SEL, or R-Line trim
-  Jetta   — SEL, Autobahn, GLI, or R-Line trim
-  Passat  — Highline, SEL, or R-Line trim
-  Tiguan  — Highline, SEL, or R-Line trim
-  Touareg — always flag (all trims)
+  Touareg — Highline trim only
 
 Models not listed are silently ignored (wrong bucket).
 Kenny rarely shows marketing trim; classification relies on the NHTSA VIN decoder.
@@ -31,20 +26,15 @@ from kenny_lib import (
 
 STATE_FILE = Path(__file__).parent / "volkswagen_xenon_state.json"
 
-YEAR_MIN = 2013
+YEAR_MIN = 2014
 YEAR_MAX = 9999
 
-# Dict order matters: more-specific keys (GOLF R, GLI) must come before their prefixes (GOLF).
+# Dict order matters: more-specific keys (GOLF R) must come before their prefixes (GOLF).
 # Empty phrase list = always flag regardless of trim.
 MODEL_RULES: dict[str, list[str]] = {
     "CC":      [],
     "GOLF R":  [],
-    "GLI":     [],
-    "TOUAREG": [],
-    "GOLF":    ["AUTOBAHN", "SEL", "R-LINE"],
-    "JETTA":   ["SEL", "AUTOBAHN", "GLI", "R-LINE"],
-    "PASSAT":  ["HIGHLINE", "SEL", "R-LINE"],
-    "TIGUAN":  ["HIGHLINE", "SEL", "R-LINE"],
+    "TOUAREG": ["HIGHLINE"],
 }
 
 
@@ -71,7 +61,7 @@ def classify(nhtsa_trim: str, model: str = "") -> str:
         return "no_xenon"  # model not in our target list
 
     if not rule:
-        return "xenon"  # always-flag model (CC, Golf R, GLI)
+        return "xenon"  # always-flag model (CC, Golf R)
 
     t = nhtsa_trim.upper() if nhtsa_trim else ""
     if not t:

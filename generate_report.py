@@ -70,13 +70,10 @@ def audi_section() -> str:
 def vw_section() -> str:
     data = json.loads(VW_STATE.read_text()) if VW_STATE.exists() else {}
     confirmed = data.get("confirmed", [])
-    unknown   = data.get("unknown",   [])
 
     content = ""
     if confirmed:
         content += _subsection("✓ Confirmed Highline", "#16a34a", confirmed, "#16a34a", True)
-    if unknown:
-        content += _subsection("? Trim unknown — check VIN at yard", "#d97706", unknown, "#d97706", True)
     if not content:
         content = NONE_FOUND
 
