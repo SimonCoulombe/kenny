@@ -35,8 +35,8 @@ class Target:
 
 
 TARGETS: list[Target] = [
-    Target("q5", 2013, 2017),
-    Target("a4", 2013, 2016),
+    Target("q5", 2013, 9999),
+    Target("a4", 2013, 9999),
 ]
 
 

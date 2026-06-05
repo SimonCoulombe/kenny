@@ -83,8 +83,8 @@ NHTSA is tried first; Kenny's style string is the fallback. When NHTSA returns a
 
 | Model | Years | Notes |
 |---|---|---|
-| Q5 | 2013–2017 | B8.5 facelift; Premium Plus standard xenon + AFS |
-| A4 | 2013–2016 | B8 facelift; same trim logic |
+| Q5 | 2013+ | Premium Plus standard xenon + AFS |
+| A4 | 2013+ | same trim logic |
 
 ## My Cars coverage
 
