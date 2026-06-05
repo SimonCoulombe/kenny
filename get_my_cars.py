@@ -57,7 +57,11 @@ def scan(
                 print(f"ERROR: {e}", file=sys.stderr)
                 continue
 
-            print(f"{len(vehicles)} found", file=sys.stderr)
+            uncached = sum(1 for v in vehicles if v["slug"] not in cache)
+            if uncached:
+                print(f"{len(vehicles)} found, {uncached} new (fetching details+NHTSA)", file=sys.stderr)
+            else:
+                print(f"{len(vehicles)} found, 0 new (skipping details)", file=sys.stderr)
 
             for v in vehicles:
                 v["is_new"]      = v["slug"] not in seen
