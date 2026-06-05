@@ -38,10 +38,10 @@ def fetch_inventory(
 ) -> list[dict]:
     """Return all vehicles matching make/model/year-range from all pages."""
     params = {
-        "brand":             brand,
-        "model":             model,
-        "nb_items_per_page": 50,
-        "branch[]":          branch_id,
+        "brand":    brand,
+        "model":    model,
+        "nb_items": 99,
+        "branch[]": branch_id,
     }
     vehicles: list[dict] = []
     page = 1

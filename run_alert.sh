@@ -3,7 +3,8 @@ set -euo pipefail
 cd "$(dirname "$0")"
 .venv/bin/python get_lanewatch.py  2>>lanewatch.log
 .venv/bin/python get_my_cars.py    2>>lanewatch.log
-.venv/bin/python get_audi_xenon.py 2>>lanewatch.log
+.venv/bin/python get_audi_xenon.py       2>>lanewatch.log
+.venv/bin/python get_volkswagen_xenon.py 2>>lanewatch.log
 output=$(.venv/bin/python generate_report.py)
 echo "$output" > report.html
 if echo "$output" | grep -q '★ NEW'; then

@@ -1,9 +1,20 @@
 #!/usr/bin/env python3
 """
-Audi xenon headlight scanner — all models 2013+, Premium Plus or Prestige trim.
-These have bi-xenon + AFS adaptive headlights worth ~$1800 CAD at resale.
-Classification relies on NHTSA VIN decoder, not Kenny's style string.
-Saves results to audi_xenon_state.json.
+VW xenon headlight scanner — 2013+ Volkswagen.
+
+Per-model xenon rules (NHTSA trim required unless noted):
+  CC      — always flag regardless of trim
+  Golf R  — always flag regardless of trim
+  GLI     — always flag regardless of trim
+  Golf    — Autobahn, SEL, or R-Line trim
+  Jetta   — SEL, Autobahn, GLI, or R-Line trim
+  Passat  — Highline, SEL, or R-Line trim
+  Tiguan  — Highline, SEL, or R-Line trim
+  Touareg — always flag (all trims)
+
+Models not listed are silently ignored (wrong bucket).
+Kenny rarely shows marketing trim; classification relies on the NHTSA VIN decoder.
+Saves results to volkswagen_xenon_state.json.
 """
 
 import argparse
@@ -18,19 +29,27 @@ from kenny_lib import (
     get_session, load_seen, save_seen, load_detail_cache, save_detail_cache,
 )
 
-STATE_FILE = Path(__file__).parent / "audi_xenon_state.json"
-
-# NHTSA trim phrases that confirm bi-xenon + AFS; checked before BAD so "PREMIUM PLUS" wins over "PREMIUM"
-GOOD_PHRASES = ["PREMIUM PLUS", "PRESTIGE"]
-# NHTSA trim phrases that confirm no AFS (base Premium has xenon but no directional)
-BAD_PHRASES  = ["PREMIUM"]
+STATE_FILE = Path(__file__).parent / "volkswagen_xenon_state.json"
 
 YEAR_MIN = 2013
 YEAR_MAX = 9999
 
+# Dict order matters: more-specific keys (GOLF R, GLI) must come before their prefixes (GOLF).
+# Empty phrase list = always flag regardless of trim.
+MODEL_RULES: dict[str, list[str]] = {
+    "CC":      [],
+    "GOLF R":  [],
+    "GLI":     [],
+    "TOUAREG": [],
+    "GOLF":    ["AUTOBAHN", "SEL", "R-LINE"],
+    "JETTA":   ["SEL", "AUTOBAHN", "GLI", "R-LINE"],
+    "PASSAT":  ["HIGHLINE", "SEL", "R-LINE"],
+    "TIGUAN":  ["HIGHLINE", "SEL", "R-LINE"],
+}
+
 
 def model_from_slug(slug: str) -> str:
-    """Extract model from slug like 'audi_q5_2015_kup-st-aug_123'."""
+    """Extract model from slug like 'volkswagen_passat_2013_kup-st-aug_123'."""
     parts = slug.split("_")
     try:
         year_idx = next(i for i, p in enumerate(parts) if p.isdigit() and len(p) == 4)
@@ -39,18 +58,30 @@ def model_from_slug(slug: str) -> str:
         return ""
 
 
-def classify(nhtsa_trim: str) -> str:
-    """Returns 'xenon', 'no_xenon', or 'unknown'. Scans the full trim string including comma-separated values."""
-    if not nhtsa_trim:
-        return "unknown"
-    t = nhtsa_trim.upper()
-    for phrase in GOOD_PHRASES:
+def classify(nhtsa_trim: str, model: str = "") -> str:
+    """
+    Look up the per-model rule, then check NHTSA trim.
+    Returns 'xenon', 'no_xenon', or 'unknown'.
+    Kenny's raw_trim is body/engine info for VW and is not used here.
+    """
+    m = model.upper()
+    rule = next((phrases for key, phrases in MODEL_RULES.items() if key in m), None)
+
+    if rule is None:
+        return "no_xenon"  # model not in our target list
+
+    if not rule:
+        return "xenon"  # always-flag model (CC, Golf R, GLI)
+
+    t = nhtsa_trim.upper() if nhtsa_trim else ""
+    if not t:
+        return "unknown"  # target model but can't read trim from NHTSA
+
+    for phrase in rule:
         if phrase in t:
             return "xenon"
-    for phrase in BAD_PHRASES:
-        if phrase in t:
-            return "no_xenon"
-    return "unknown"
+
+    return "no_xenon"
 
 
 def scan(
@@ -65,9 +96,9 @@ def scan(
     wrong:     list[dict] = []
 
     for branch_name, branch_id in branches.items():
-        print(f"  [audi] {branch_name} ({YEAR_MIN}+) ...", end=" ", flush=True, file=sys.stderr)
+        print(f"  [vw] {branch_name} ({YEAR_MIN}+) ...", end=" ", flush=True, file=sys.stderr)
         try:
-            vehicles = fetch_inventory(session, branch_id, "", YEAR_MIN, YEAR_MAX, brand="audi")
+            vehicles = fetch_inventory(session, branch_id, "", YEAR_MIN, YEAR_MAX, brand="volkswagen")
             time.sleep(0.4)
         except Exception as e:
             print(f"ERROR: {e}", file=sys.stderr)
@@ -87,7 +118,7 @@ def scan(
             new_slugs.add(v["slug"])
 
             fill_vehicle_detail(session, v, cache)
-            status = classify(v["trim_nhtsa"])
+            status = classify(v["trim_nhtsa"], v.get("model", ""))
             if status == "xenon":
                 confirmed.append(v)
             elif status == "no_xenon":
@@ -110,12 +141,12 @@ def save_state(confirmed: list[dict], unknown: list[dict], wrong: list[dict]) ->
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Kenny Audi xenon headlight scanner")
+    p = argparse.ArgumentParser(description="Kenny VW xenon headlight scanner")
     p.add_argument("--branch", choices=list(BRANCHES))
     args = p.parse_args()
 
     branches = {args.branch: BRANCHES[args.branch]} if args.branch else BRANCHES
-    print(f"[audi_xenon] {date.today()} | branches: {', '.join(branches)}", file=sys.stderr)
+    print(f"[vw_xenon] {date.today()} | branches: {', '.join(branches)}", file=sys.stderr)
 
     seen  = load_seen()
     cache = load_detail_cache()
@@ -125,7 +156,7 @@ def main() -> None:
     save_detail_cache(cache)
 
     new = sum(1 for v in confirmed + unknown if v["is_new"])
-    print(f"[audi_xenon] confirmed={len(confirmed)} unknown={len(unknown)} wrong={len(wrong)} new={new}",
+    print(f"[vw_xenon] confirmed={len(confirmed)} unknown={len(unknown)} wrong={len(wrong)} new={new}",
           file=sys.stderr)
 
 
