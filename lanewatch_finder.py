@@ -106,8 +106,13 @@ def classify_trim(trim_raw: str, target: Target, nhtsa_trim: str = "") -> str:
     "unknown"      — style field empty or unrecognised token
 
     Tries nhtsa_trim first (more reliable), then falls back to trim_raw.
+    When NHTSA returns multiple comma-separated trims for a VIN range it is
+    ambiguous about which applies to this specific car, so we skip it.
     """
-    for source in (nhtsa_trim, trim_raw):
+    # Comma in NHTSA trim means the VIN pattern covers multiple trim levels —
+    # can't tell which this car actually is, so ignore it and trust Kenny's style.
+    nhtsa_single = nhtsa_trim if nhtsa_trim and "," not in nhtsa_trim else ""
+    for source in (nhtsa_single, trim_raw):
         if not source:
             continue
         tokens = set(source.upper().split())
