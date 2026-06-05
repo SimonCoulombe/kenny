@@ -39,10 +39,11 @@ BRANCHES: dict[str, str] = {
     "levis":  "1457186",
 }
 
-BASE_URL      = "https://kennyupull.com"
-INVENTORY_URL = f"{BASE_URL}/auto-parts/our-inventory/"
-SEEN_FILE     = Path(__file__).parent / "seen_vehicles.json"
-STATE_FILE    = Path(__file__).parent / "lanewatch_state.json"
+BASE_URL          = "https://kennyupull.com"
+INVENTORY_URL     = f"{BASE_URL}/auto-parts/our-inventory/"
+SEEN_FILE         = Path(__file__).parent / "seen_vehicles.json"
+STATE_FILE        = Path(__file__).parent / "lanewatch_state.json"
+NHTSA_DECODE_URL  = "https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/{}?format=json"
 
 # ---------------------------------------------------------------------------
 # LaneWatch targets
@@ -98,19 +99,22 @@ PERSONAL_TARGETS: list[PersonalTarget] = [
 # Trim classification
 # ---------------------------------------------------------------------------
 
-def classify_trim(trim_raw: str, target: Target) -> str:
+def classify_trim(trim_raw: str, target: Target, nhtsa_trim: str = "") -> str:
     """
     "lanewatch"    — confirmed trim has LaneWatch
     "no_lanewatch" — confirmed trim does not
     "unknown"      — style field empty or unrecognised token
+
+    Tries nhtsa_trim first (more reliable), then falls back to trim_raw.
     """
-    if not trim_raw:
-        return "unknown"
-    tokens = set(trim_raw.upper().split())
-    if tokens & target.good_trims:
-        return "lanewatch"
-    if tokens & NON_LANEWATCH_TRIMS:
-        return "no_lanewatch"
+    for source in (nhtsa_trim, trim_raw):
+        if not source:
+            continue
+        tokens = set(source.upper().split())
+        if tokens & target.good_trims:
+            return "lanewatch"
+        if tokens & NON_LANEWATCH_TRIMS:
+            return "no_lanewatch"
     return "unknown"
 
 # ---------------------------------------------------------------------------
@@ -180,6 +184,8 @@ def fetch_inventory(
                     "row":        row_tag.get_text(strip=True) if row_tag else "?",
                     "date_added": date_tag.get_text(strip=True) if date_tag else "?",
                     "trim_raw":   "",
+                    "vin":        "",
+                    "trim_nhtsa": "",
                 })
 
         if not soup.select_one("a.next.page-numbers") or page >= 10:
@@ -190,17 +196,39 @@ def fetch_inventory(
     return vehicles
 
 
-def fetch_trim(session: requests.Session, url: str) -> str:
-    """Return the raw style string from a vehicle detail page, or ''."""
+def fetch_vehicle_detail(session: requests.Session, url: str) -> tuple[str, str]:
+    """Return (kenny_style, vin) from a vehicle detail page, or ('', '')."""
     try:
         resp = session.get(url, timeout=15)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
+        style = ""
+        vin   = ""
         for subtitle in soup.select("p.subtitle"):
-            if subtitle.get_text(strip=True).lower() == "style":
-                nxt = subtitle.find_next_sibling("p")
-                if nxt:
-                    return nxt.get_text(strip=True).upper()
+            label = subtitle.get_text(strip=True).lower()
+            nxt   = subtitle.find_next_sibling("p")
+            if not nxt:
+                continue
+            if label == "style":
+                style = nxt.get_text(strip=True).upper()
+            elif label == "vin":
+                vin = nxt.get_text(strip=True).upper()
+        return style, vin
+    except Exception:
+        return "", ""
+
+
+def fetch_nhtsa_trim(vin: str) -> str:
+    """Return the Trim field from the NHTSA VIN decoder, or '' on failure."""
+    if len(vin) != 17:
+        return ""
+    try:
+        resp = requests.get(NHTSA_DECODE_URL.format(vin), timeout=10,
+                            headers={"User-Agent": "Mozilla/5.0 (personal research script)"})
+        resp.raise_for_status()
+        for item in resp.json().get("Results", []):
+            if item.get("Variable") == "Trim" and item.get("Value"):
+                return item["Value"].upper()
     except Exception:
         pass
     return ""
@@ -222,7 +250,7 @@ def save_seen(seen: set[str]) -> None:
 def save_state(confirmed: list[dict], unknown: list[dict], wrong: list[dict]) -> None:
     """Persist the last full LaneWatch scan so --show-saved can replay it."""
     def strip(vehicles: list[dict]) -> list[dict]:
-        keep = ("url", "slug", "year", "make", "model", "row", "date_added", "branch_name", "trim_raw")
+        keep = ("url", "slug", "year", "make", "model", "row", "date_added", "branch_name", "trim_raw", "vin", "trim_nhtsa")
         return [{k: v[k] for k in keep if k in v} for v in vehicles]
 
     STATE_FILE.write_text(json.dumps({
@@ -248,8 +276,9 @@ def load_state() -> tuple[list[dict], list[dict], list[dict], str]:
 # ---------------------------------------------------------------------------
 
 def fmt_vehicle(v: dict, show_trim: bool) -> str:
-    star  = "★ NEW  " if v["is_new"] else "       "
-    trim  = f"  [{v['trim_raw']}]" if show_trim and v["trim_raw"] else ""
+    star         = "★ NEW  " if v["is_new"] else "       "
+    trim_display = v.get("trim_nhtsa") or v.get("trim_raw", "")
+    trim         = f"  [{trim_display}]" if show_trim and trim_display else ""
     make  = v.get("make", "honda").title()
     model = v["model"].title()
     return (
@@ -371,10 +400,13 @@ def scan_lanewatch(
                     continue
 
                 if check_trim:
-                    v["trim_raw"] = fetch_trim(session, v["url"])
+                    v["trim_raw"], v["vin"] = fetch_vehicle_detail(session, v["url"])
                     time.sleep(0.4)
+                    if v["vin"]:
+                        v["trim_nhtsa"] = fetch_nhtsa_trim(v["vin"])
+                        time.sleep(0.3)
 
-                status = classify_trim(v["trim_raw"], target)
+                status = classify_trim(v["trim_raw"], target, v["trim_nhtsa"])
                 if status == "lanewatch":
                     confirmed.append(v)
                 elif status == "no_lanewatch":
@@ -420,8 +452,11 @@ def scan_personal(
                 if new_only and not is_new:
                     continue
                 if check_trim:
-                    v["trim_raw"] = fetch_trim(session, v["url"])
+                    v["trim_raw"], v["vin"] = fetch_vehicle_detail(session, v["url"])
                     time.sleep(0.4)
+                    if v["vin"]:
+                        v["trim_nhtsa"] = fetch_nhtsa_trim(v["vin"])
+                        time.sleep(0.3)
                 results[pt.label].append(v)
 
     return results, all_seen_slugs
@@ -436,7 +471,8 @@ def _html_vehicle_card(v: dict, accent: str, show_trim: bool) -> str:
         'padding:2px 7px;border-radius:3px;margin-right:6px;">★ NEW</span>'
         if v["is_new"] else ""
     )
-    trim_str = f' <span style="color:#666;font-size:13px;">[{v["trim_raw"]}]</span>' if show_trim and v.get("trim_raw") else ""
+    trim_display = v.get("trim_nhtsa") or v.get("trim_raw", "")
+    trim_str = f' <span style="color:#666;font-size:13px;">[{trim_display}]</span>' if show_trim and trim_display else ""
     branch_label = v["branch_name"].replace("st-aug", "St-Augustin").replace("levis", "Lévis")
     return (
         f'<div style="border:1px solid #e2e8f0;border-left:4px solid {accent};'
