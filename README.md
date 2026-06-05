@@ -4,7 +4,7 @@ Scrapes the [Kenny U-Pull](https://kennyupull.com) inventory (St-Augustin and L�
 
 1. **LaneWatch** — Honda vehicles whose trim likely includes the Honda LaneWatch passenger-mirror camera (~$54 at the yard, $220–380 CAD on eBay).
 2. **Audi Xenon Headlights** — all Audi models 2013+ with Premium Plus or Prestige trim (bi-xenon + AFS adaptive headlights, ~$1800 CAD at resale).
-3. **VW Xenon Headlights** — 2013+ Volkswagen; per-model trim rules (CC/Golf R/GLI/Touareg always flagged, others require SEL/Highline/Autobahn/R-Line).
+3. **VW Xenon Headlights** — 2014+ Volkswagen; CC and Golf R always flagged, Touareg Highline only.
 4. **My Cars** — any vehicle of the same generation as your own, for sourcing personal replacement parts.
 
 Trim is confirmed via the [NHTSA VIN decoder](https://vpic.nhtsa.dot.gov/api/) — more reliable than Kenny's style field. Detail pages are fetched once and cached in `detail_cache.json` so re-runs don't repeat network calls.
@@ -63,7 +63,7 @@ Each scanner script:
 |---|---|---|---|
 | `get_lanewatch.py` | EX, EX-L, EX-T, Touring, Elite | DX, LX, SE, Sport, … | |
 | `get_audi_xenon.py` | Premium Plus, Prestige | Premium | Premium has xenon but no AFS directional |
-| `get_volkswagen_xenon.py` | per-model rules (see table below) | anything not matching a model rule | MODEL_RULES dict; CC/Golf R/GLI always flag; unknown only when target model has no NHTSA trim |
+| `get_volkswagen_xenon.py` | CC/Golf R (any trim), Touareg Highline | anything not matching | Unknowns saved to state but not shown in report |
 | `get_my_cars.py` | any trim | — | |
 
 NHTSA is preferred. The full trim string is scanned — a phrase match anywhere counts, including within comma-separated ranges (e.g. `HIGHLINE` in `TRENDLINE, HIGHLINE` is a hit). Kenny's style string is used as a fallback only when NHTSA returns nothing. For VW specifically, Kenny's style field contains engine/body info rather than trim names, so the fallback rarely triggers.
@@ -80,22 +80,15 @@ Trim hierarchy: **Premium < Premium Plus < Prestige**
 - **Premium** → xenon bulbs but no AFS directional system — excluded
 - The AFS system is the valuable part; the headlight assemblies are worth ~$1800 CAD
 
-### Volkswagen (all models, 2013+)
-
-Rules are per-model — a phrase that qualifies one model may not qualify another.
+### Volkswagen (2014+)
 
 | Model | Confirmed xenon when… |
 |---|---|
 | CC | always (regardless of trim) |
 | Golf R | always (regardless of trim) |
-| GLI | always (regardless of trim) |
-| Touareg | always (regardless of trim) |
-| Golf | Autobahn, SEL, or R-Line trim |
-| Jetta | SEL, Autobahn, GLI, or R-Line trim |
-| Passat | Highline, SEL, or R-Line trim |
-| Tiguan | Highline, SEL, or R-Line trim |
+| Touareg | Highline trim only |
 
-Models not in the table (Beetle, Rabbit, etc.) go straight to the wrong bucket.
+Models not in the table go straight to the wrong bucket. Unknowns (target model but NHTSA trim unreadable) are saved to state but not shown in the report.
 
 **CA/US trim naming:** Trendline ≈ S (base), Comfortline ≈ SE (mid), Highline ≈ SEL (top). NHTSA uses either system depending on the VIN origin; the scanner checks for both names where relevant.
 
@@ -134,7 +127,8 @@ Kenny's style field for VW contains engine/body info (e.g. `4DR SDN 2.5L MANUAL 
 
 | Models | Years | Notes |
 |---|---|---|
-| All models | 2013+ | Per-model rules; see xenon knowledge table above |
+| CC, Golf R | 2014+ | Any trim |
+| Touareg | 2014+ | Highline only |
 
 ## My Cars coverage
 
