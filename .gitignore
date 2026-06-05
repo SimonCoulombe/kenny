@@ -3,7 +3,10 @@ __pycache__/
 *.pyc
 *.pyo
 seen_vehicles.json
+detail_cache.json
 lanewatch_state.json
+my_cars_state.json
+audi_xenon_state.json
 lanewatch.log
 report.html
 .Rhistory
