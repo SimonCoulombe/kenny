@@ -1,9 +1,12 @@
 # Kenny U-Pull Scanner
 
-Scrapes the [Kenny U-Pull](https://kennyupull.com) inventory (St-Augustin and Lévis branches) and prints two reports each run:
+Scrapes the [Kenny U-Pull](https://kennyupull.com) inventory (St-Augustin and Lévis branches) and produces an HTML report with three sections:
 
-1. **LaneWatch Finder** — Honda vehicles whose trim level likely includes the Honda LaneWatch passenger-mirror camera. These go for ~$54 at the yard and sell for $220–380 CAD on eBay.
-2. **My Cars** — any vehicle of the same generation as your own cars, so you can source personal replacement parts.
+1. **LaneWatch** — Honda vehicles whose trim likely includes the Honda LaneWatch passenger-mirror camera (~$54 at the yard, $220–380 CAD on eBay).
+2. **Audi Xenon Headlights** — Q5 and A4 with Premium Plus or Prestige trim (bi-xenon + AFS adaptive headlights, ~$1800 CAD at resale).
+3. **My Cars** — any vehicle of the same generation as your own, for sourcing personal replacement parts.
+
+Trim is confirmed via the [NHTSA VIN decoder](https://vpic.nhtsa.dot.gov/api/) — more reliable than Kenny's style field. Detail pages are fetched once and cached in `detail_cache.json` so re-runs don't repeat network calls.
 
 ---
 
@@ -19,46 +22,55 @@ pip install -r requirements.txt
 
 ## Usage
 
+### Full scan + generate report
+
 ```bash
-# Full scan, both branches, no trim verification (fast)
-python lanewatch_finder.py
+.venv/bin/python get_lanewatch.py
+.venv/bin/python get_my_cars.py
+.venv/bin/python get_audi_xenon.py
+.venv/bin/python generate_report.py > report.html
+```
 
-# Fetch each vehicle's detail page to confirm the trim (slower, more accurate)
-python lanewatch_finder.py --check-trim
+### Single branch (faster for testing)
 
-# Only show vehicles that weren't present on the last run (for daily alerts)
-python lanewatch_finder.py --new-only --check-trim
+```bash
+.venv/bin/python get_lanewatch.py --branch st-aug
+```
 
-# One branch only
-python lanewatch_finder.py --branch st-aug
+### Run the cron script manually (scans + email if new)
 
-# Include confirmed wrong-trim vehicles in the output
-python lanewatch_finder.py --show-wrong
-
-# Replay the last full scan instantly (no network requests)
-python lanewatch_finder.py --show-saved
+```bash
+bash run_alert.sh
 ```
 
 ---
 
-## How trim detection works
+## How it works
 
-Without `--check-trim`, all in-range vehicles are listed as **trim unknown** — you have to verify in person.
+Each scanner script:
+1. Fetches the Kenny inventory for its target vehicles
+2. Looks up the VIN on each vehicle's detail page (cached after first fetch)
+3. Decodes the VIN via NHTSA to get the actual trim level
+4. Classifies the vehicle and saves results to its state file
 
-With `--check-trim`, the script fetches each vehicle's detail page and reads the "Style" field (e.g. `5DR HB CVT EX-L W/NAVI`). It tokenises the string and matches against known trim sets:
+`generate_report.py` reads all three state files and produces a single HTML report.
 
-| Result | Meaning |
-|--------|---------|
-| ✓ CONFIRMED LANEWATCH | Token matched a known good trim (EX, EX-L, Touring, etc.) |
-| ✗ CONFIRMED WRONG TRIM | Token matched a known bad trim (LX, SE, Sport, etc.) |
-| ? TRIM UNKNOWN | Style field missing or unrecognised token |
+### Trim classification
+
+| Script | Good trim (confirmed) | Bad trim (skipped) |
+|---|---|---|
+| `get_lanewatch.py` | EX, EX-L, EX-T, Touring, Elite | DX, LX, SE, Sport, … |
+| `get_audi_xenon.py` | Premium Plus, Prestige | Premium |
+| `get_my_cars.py` | any trim | — |
+
+NHTSA is tried first; Kenny's style string is the fallback. When NHTSA returns a comma-separated range (ambiguous VIN batch), it is ignored and only Kenny's string is used.
 
 ---
 
 ## LaneWatch model coverage
 
 | Model | Years | Trims with LaneWatch |
-|-------|-------|----------------------|
+|---|---|---|
 | Accord | 2013–2017 | EX, EX-L, EX-T, Touring |
 | Civic | 2012–2021 | EX, EX-L, EX-T, Touring |
 | CR-V | 2015–2016 | EX, EX-L, Touring (2017+ dropped it) |
@@ -67,38 +79,40 @@ With `--check-trim`, the script fetches each vehicle's detail page and reads the
 | Odyssey | 2015–2017 | EX, EX-L, Touring, Elite |
 | Pilot | 2016–2022 | EX-L, Touring, Elite (plain EX excluded) |
 
----
+## Audi xenon coverage
+
+| Model | Years | Notes |
+|---|---|---|
+| Q5 | 2013–2017 | B8.5 facelift; Premium Plus standard xenon + AFS |
+| A4 | 2013–2016 | B8 facelift; same trim logic |
 
 ## My Cars coverage
 
-Alerts whenever a car of the same generation arrives, regardless of trim:
-
-| Vehicle | Generation tracked |
-|---------|--------------------|
+| Vehicle | Generation |
+|---|---|
 | Nissan Leaf | 2018–2022 (2nd gen) |
 | Honda Odyssey | 2011–2017 (4th gen) |
-
-A 2015–2017 Odyssey EX-L will appear in **both** sections — it's a LaneWatch candidate *and* your generation.
 
 ---
 
 ## Data files
 
 | File | Purpose |
-|------|---------|
-| `seen_vehicles.json` | All slugs ever seen; drives `--new-only` deduplication |
-| `lanewatch_state.json` | Last full LaneWatch scan result; drives `--show-saved` |
-
-`seen_vehicles.json` is shared between the LaneWatch and My Cars scans, so a vehicle is only ever flagged as "new" on the first run that encounters it.
+|---|---|
+| `seen_vehicles.json` | All slugs ever seen; drives ★ NEW detection |
+| `detail_cache.json` | Cached trim/VIN/NHTSA per slug; avoids re-fetching daily |
+| `lanewatch_state.json` | Last LaneWatch scan result |
+| `my_cars_state.json` | Last My Cars scan result |
+| `audi_xenon_state.json` | Last Audi scan result |
 
 ---
 
-## Cron job (Oracle VM)
+## Cron job (Pi2)
 
-Run daily at 8 AM and log output:
+Runs daily at 8 AM via `run_alert.sh`. Sends an HTML email to `simoncoulombe@protonmail.com` only when at least one ★ NEW vehicle is found. Always writes `report.html`.
 
 ```cron
-0 8 * * * cd /home/simon/kenny && .venv/bin/python lanewatch_finder.py --check-trim --new-only >> lanewatch.log 2>&1
+0 8 * * * /home/simon/kenny/run_alert.sh
 ```
 
-Add to crontab with `crontab -e`.
+The latest report is also served at **http://192.168.2.14:8080/report.html** via a systemd HTTP server (`kenny-report.service`).
