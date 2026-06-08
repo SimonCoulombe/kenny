@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Ford F-series Lariat scanner — F-150 / F-250 / F-350 in Lariat trim, 2000+.
+Ford F-series Lariat scanner — F-150 / F-250 / F-350 in Lariat trim, 2011+.
 
 Unlike the Audi/VW scanners, the trim is read from Kenny's *style* field, not
 from NHTSA. Ford does not VIN-encode the marketing trim (Lariat/XLT/XL/King
@@ -26,7 +26,7 @@ from kenny_lib import (
 
 STATE_FILE = Path(__file__).parent / "ford_lariat_state.json"
 
-YEAR_MIN = 2000
+YEAR_MIN = 2011
 YEAR_MAX = 9999
 
 # Models we care about, as they appear in the Kenny slug (lowercase).

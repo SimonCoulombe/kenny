@@ -5,7 +5,7 @@ Scrapes the [Kenny U-Pull](https://kennyupull.com) inventory (St-Augustin and L�
 1. **LaneWatch** — Honda vehicles whose trim likely includes the Honda LaneWatch passenger-mirror camera (~$54 at the yard, $220–380 CAD on eBay).
 2. **Audi Xenon Headlights** — all Audi models 2013+ with Premium Plus or Prestige trim (bi-xenon + AFS adaptive headlights, ~$1800 CAD at resale).
 3. **VW Xenon Headlights** — 2014+ Volkswagen; CC and Golf R always flagged, Touareg Highline only.
-4. **Ford F-Series Lariat** — F-150 / F-250 / F-350 in Lariat trim, 2000+.
+4. **Ford F-Series Lariat** — F-150 / F-250 / F-350 in Lariat trim, 2011+.
 5. **My Cars** — any vehicle of the same generation as your own, for sourcing personal replacement parts.
 
 Trim is confirmed via the [NHTSA VIN decoder](https://vpic.nhtsa.dot.gov/api/) — more reliable than Kenny's style field — **except for Ford F-series, where NHTSA does not VIN-encode the marketing trim and Kenny's style field is the only source** (see below). Detail pages are fetched once and cached in `detail_cache.json` so re-runs don't repeat network calls.
@@ -97,7 +97,7 @@ Models not in the table go straight to the wrong bucket. Unknowns (target model 
 
 Kenny's style field for VW contains engine/body info (e.g. `4DR SDN 2.5L MANUAL SE`), not the marketing trim name — the NHTSA VIN decoder is the only reliable source. When NHTSA returns only a drivetrain descriptor like `4MOTION` with no trim info, the vehicle lands in "unknown".
 
-### Ford F-Series (2000+)
+### Ford F-Series (2011+)
 
 | Model | Confirmed when… |
 |---|---|
@@ -146,7 +146,7 @@ Kenny's style field for VW contains engine/body info (e.g. `4DR SDN 2.5L MANUAL 
 
 | Models | Years | Notes |
 |---|---|---|
-| F-150, F-250, F-350 | 2000+ | Lariat trim; matched on Kenny style field, not NHTSA |
+| F-150, F-250, F-350 | 2011+ | Lariat trim; matched on Kenny style field, not NHTSA |
 
 ## My Cars coverage
 
