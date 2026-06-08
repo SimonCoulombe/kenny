@@ -97,11 +97,11 @@ def escape_section() -> str:
 
     content = ""
     if confirmed:
-        content += _subsection("✓ Confirmed Titanium / Limited", "#16a34a", confirmed, "#16a34a", True)
+        content += _subsection("✓ Confirmed Titanium (xenon)", "#16a34a", confirmed, "#16a34a", True)
     if not content:
         content = NONE_FOUND
 
-    return f'<h2 style="{H2_STYLE}">Ford Escape Titanium / Limited</h2>' + content
+    return f'<h2 style="{H2_STYLE}">Ford Escape Xenon Headlights</h2>' + content
 
 
 def my_cars_section() -> str:

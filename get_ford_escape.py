@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
-Ford Escape Titanium / Limited scanner — 2008+ Escape, top trims only.
+Ford Escape xenon-headlight scanner — 2013+ Escape Titanium.
 
-Limited was the top trim of the 2008–2012 generation; Titanium replaced it
-from the 2013 redesign onward. Both NHTSA and Kenny's style field carry the
-trim for the Escape (they agree), so this scanner checks both — NHTSA first,
-style as fallback — unlike the Ford F-series scanner where NHTSA is useless.
+Factory HID (D3S) xenon headlights arrived with the 2013 redesign and were
+standard on the Titanium trim (2013–2016) / optional later. The 2008–2012
+generation — including its top "Limited" trim — was halogen only, so it is not
+targeted. Titanium is the best proxy Kenny exposes; HID can still be optional on
+later Titaniums, so confirm the projector/D3S housing in person.
 
+Both NHTSA and Kenny's style field carry the Escape trim (they agree), so this
+scanner checks both — unlike the Ford F-series scanner where NHTSA is useless.
 Only the Escape model is fetched in detail; other Ford models are dropped from
 the slug before any detail/NHTSA call. Saves to ford_escape_state.json.
 """
@@ -25,17 +28,17 @@ from kenny_lib import (
 
 STATE_FILE = Path(__file__).parent / "ford_escape_state.json"
 
-YEAR_MIN = 2008
+YEAR_MIN = 2013
 YEAR_MAX = 9999
 
 # Model token as it appears in the Kenny slug.
 TARGET_MODEL = "escape"
 
-# Trims we want.
-GOOD_PHRASES = ["TITANIUM", "LIMITED"]
+# Trim that carries the factory HID/xenon option (standard on 2013-2016 Titanium).
+GOOD_PHRASES = ["TITANIUM"]
 # Other recognizable Escape trims — their presence means "not our trim" rather
 # than "couldn't read it", so the vehicle goes to the wrong bucket, not unknown.
-OTHER_TRIMS = ["XLT", "XLS", "SEL", "SE", "S"]
+OTHER_TRIMS = ["LIMITED", "SEL", "SE", "S", "XLT", "XLS"]
 
 
 def classify(nhtsa_trim: str, style: str) -> str:
@@ -111,7 +114,7 @@ def save_state(confirmed: list[dict], unknown: list[dict], wrong: list[dict]) ->
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Kenny Ford Escape Titanium/Limited scanner")
+    p = argparse.ArgumentParser(description="Kenny Ford Escape xenon (Titanium) scanner")
     p.add_argument("--branch", choices=list(BRANCHES))
     args = p.parse_args()
 
