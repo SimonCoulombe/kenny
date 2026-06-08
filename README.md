@@ -6,7 +6,8 @@ Scrapes the [Kenny U-Pull](https://kennyupull.com) inventory (St-Augustin and L�
 2. **Audi Xenon Headlights** — all Audi models 2013+ with Premium Plus or Prestige trim (bi-xenon + AFS adaptive headlights, ~$1800 CAD at resale).
 3. **VW Xenon Headlights** — 2014+ Volkswagen; CC and Golf R always flagged, Touareg Highline only.
 4. **Ford F-Series Lariat** — F-150 / F-250 / F-350 in Lariat trim, 2011+.
-5. **My Cars** — any vehicle of the same generation as your own, for sourcing personal replacement parts.
+5. **Ford Escape Titanium / Limited** — Escape in its top trim, 2008+ (Limited pre-2013, Titanium 2013+).
+6. **My Cars** — any vehicle of the same generation as your own, for sourcing personal replacement parts.
 
 Trim is confirmed via the [NHTSA VIN decoder](https://vpic.nhtsa.dot.gov/api/) — more reliable than Kenny's style field — **except for Ford F-series, where NHTSA does not VIN-encode the marketing trim and Kenny's style field is the only source** (see below). Detail pages are fetched once and cached in `detail_cache.json` so re-runs don't repeat network calls.
 
@@ -32,6 +33,7 @@ pip install -r requirements.txt
 .venv/bin/python get_audi_xenon.py
 .venv/bin/python get_volkswagen_xenon.py
 .venv/bin/python get_ford_lariat.py
+.venv/bin/python get_ford_escape.py
 .venv/bin/python generate_report.py > report.html
 ```
 
@@ -57,7 +59,7 @@ Each scanner script:
 3. Decodes the VIN via NHTSA to get the actual trim level
 4. Classifies the vehicle and saves results to its state file
 
-`generate_report.py` reads all four state files and produces a single HTML report.
+`generate_report.py` reads all the scanner state files and produces a single HTML report.
 
 ### Trim classification
 
@@ -67,6 +69,7 @@ Each scanner script:
 | `get_audi_xenon.py` | Premium Plus, Prestige | Premium | Premium has xenon but no AFS directional |
 | `get_volkswagen_xenon.py` | CC/Golf R (any trim), Touareg Highline | anything not matching | Unknowns saved to state but not shown in report |
 | `get_ford_lariat.py` | Lariat (F-150/F-250/F-350) | any other trim | **Classifies on Kenny's style field, not NHTSA** — see below |
+| `get_ford_escape.py` | Titanium, Limited (Escape) | XLT, XLS, SEL, SE, S | NHTSA and style agree; both are checked |
 | `get_my_cars.py` | any trim | — | |
 
 NHTSA is preferred (except Ford F-series). The full trim string is scanned — a phrase match anywhere counts, including within comma-separated ranges (e.g. `HIGHLINE` in `TRENDLINE, HIGHLINE` is a hit). Kenny's style string is used as a fallback only when NHTSA returns nothing. For VW specifically, Kenny's style field contains engine/body info rather than trim names, so the fallback rarely triggers.
@@ -104,6 +107,17 @@ Kenny's style field for VW contains engine/body info (e.g. `4DR SDN 2.5L MANUAL 
 | F-150, F-250, F-350 | Kenny style field contains `LARIAT` |
 
 **Ford is the opposite of VW/Audi:** the NHTSA VIN decoder does *not* carry the marketing trim (Lariat/XLT/XL/King Ranch/Platinum). For Ford trucks NHTSA's `Trim` field returns body-style descriptors like `Styleside` / `Flare Side`, or nothing — Ford simply doesn't VIN-encode the trim line. Kenny's **style field** is the only reliable source: it reads e.g. `4WD SUPERCREW 145" LARIAT`, where the last token is the actual trim. So `get_ford_lariat.py` classifies on `trim_raw` (style) and discards `trim_nhtsa`. Only F-150/F-250/F-350 are fetched in detail; other Ford models are dropped from the slug before any detail call. A target truck with an empty style string lands in "unknown" (check in person).
+
+**Note this is truck-specific.** The Ford *Escape* — unlike the F-series — *does* have its trim in NHTSA, and NHTSA agrees with Kenny's style field (both read `TITANIUM` / `LIMITED`). So `get_ford_escape.py` checks both sources rather than relying on style alone.
+
+### Ford Escape (2008+)
+
+| Trim | Years | Notes |
+|---|---|---|
+| Limited | 2008–2012 | top trim of the pre-redesign generation |
+| Titanium | 2013+ | top trim, replaced Limited |
+
+`get_ford_escape.py` flags either trim. It scans both NHTSA and Kenny's style string (they agree for the Escape); a phrase match in either confirms. Other recognizable trims (`XLT`, `XLS`, `SEL`, `SE`, `S`) send the vehicle to the wrong bucket; an Escape with no readable trim in either source lands in "unknown".
 
 ---
 
@@ -148,6 +162,12 @@ Kenny's style field for VW contains engine/body info (e.g. `4DR SDN 2.5L MANUAL 
 |---|---|---|
 | F-150, F-250, F-350 | 2011+ | Lariat trim; matched on Kenny style field, not NHTSA |
 
+## Ford Escape coverage
+
+| Models | Years | Notes |
+|---|---|---|
+| Escape | 2008+ | Titanium or Limited; NHTSA and style both checked |
+
 ## My Cars coverage
 
 | Vehicle | Generation |
@@ -168,6 +188,7 @@ Kenny's style field for VW contains engine/body info (e.g. `4DR SDN 2.5L MANUAL 
 | `audi_xenon_state.json` | Last Audi scan result |
 | `volkswagen_xenon_state.json` | Last VW scan result |
 | `ford_lariat_state.json` | Last Ford Lariat scan result |
+| `ford_escape_state.json` | Last Ford Escape scan result |
 
 ---
 
