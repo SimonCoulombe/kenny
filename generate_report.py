@@ -14,6 +14,7 @@ LANEWATCH_STATE = Path(__file__).parent / "lanewatch_state.json"
 MY_CARS_STATE   = Path(__file__).parent / "my_cars_state.json"
 AUDI_STATE      = Path(__file__).parent / "audi_xenon_state.json"
 VW_STATE        = Path(__file__).parent / "volkswagen_xenon_state.json"
+FORD_STATE      = Path(__file__).parent / "ford_lariat_state.json"
 
 HR = '<hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">'
 H2_STYLE = "font-size:16px;color:#1a1a2e;margin:0 0 12px;border-bottom:2px solid #e2e8f0;padding-bottom:8px;"
@@ -80,6 +81,22 @@ def vw_section() -> str:
     return f'<h2 style="{H2_STYLE}">VW Xenon Headlights</h2>' + content
 
 
+def ford_section() -> str:
+    data = json.loads(FORD_STATE.read_text()) if FORD_STATE.exists() else {}
+    confirmed = data.get("confirmed", [])
+    unknown   = data.get("unknown",   [])
+
+    content = ""
+    if confirmed:
+        content += _subsection("✓ Confirmed Lariat", "#16a34a", confirmed, "#16a34a", True)
+    if unknown:
+        content += _subsection("? Trim unknown — check in person", "#d97706", unknown, "#d97706", True)
+    if not content:
+        content = NONE_FOUND
+
+    return f'<h2 style="{H2_STYLE}">Ford F-Series Lariat</h2>' + content
+
+
 def my_cars_section() -> str:
     data   = json.loads(MY_CARS_STATE.read_text()) if MY_CARS_STATE.exists() else {}
     labels = [k for k in data if k != "date"]
@@ -101,7 +118,7 @@ def my_cars_section() -> str:
 
 
 def generate() -> str:
-    sections = [lanewatch_section(), audi_section(), vw_section(), my_cars_section()]
+    sections = [lanewatch_section(), audi_section(), vw_section(), ford_section(), my_cars_section()]
     return html_wrap(str(date.today()), HR.join(sections))
 
 

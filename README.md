@@ -5,9 +5,10 @@ Scrapes the [Kenny U-Pull](https://kennyupull.com) inventory (St-Augustin and L�
 1. **LaneWatch** — Honda vehicles whose trim likely includes the Honda LaneWatch passenger-mirror camera (~$54 at the yard, $220–380 CAD on eBay).
 2. **Audi Xenon Headlights** — all Audi models 2013+ with Premium Plus or Prestige trim (bi-xenon + AFS adaptive headlights, ~$1800 CAD at resale).
 3. **VW Xenon Headlights** — 2014+ Volkswagen; CC and Golf R always flagged, Touareg Highline only.
-4. **My Cars** — any vehicle of the same generation as your own, for sourcing personal replacement parts.
+4. **Ford F-Series Lariat** — F-150 / F-250 / F-350 in Lariat trim, 2000+.
+5. **My Cars** — any vehicle of the same generation as your own, for sourcing personal replacement parts.
 
-Trim is confirmed via the [NHTSA VIN decoder](https://vpic.nhtsa.dot.gov/api/) — more reliable than Kenny's style field. Detail pages are fetched once and cached in `detail_cache.json` so re-runs don't repeat network calls.
+Trim is confirmed via the [NHTSA VIN decoder](https://vpic.nhtsa.dot.gov/api/) — more reliable than Kenny's style field — **except for Ford F-series, where NHTSA does not VIN-encode the marketing trim and Kenny's style field is the only source** (see below). Detail pages are fetched once and cached in `detail_cache.json` so re-runs don't repeat network calls.
 
 ---
 
@@ -30,6 +31,7 @@ pip install -r requirements.txt
 .venv/bin/python get_my_cars.py
 .venv/bin/python get_audi_xenon.py
 .venv/bin/python get_volkswagen_xenon.py
+.venv/bin/python get_ford_lariat.py
 .venv/bin/python generate_report.py > report.html
 ```
 
@@ -64,9 +66,10 @@ Each scanner script:
 | `get_lanewatch.py` | EX, EX-L, EX-T, Touring, Elite | DX, LX, SE, Sport, … | |
 | `get_audi_xenon.py` | Premium Plus, Prestige | Premium | Premium has xenon but no AFS directional |
 | `get_volkswagen_xenon.py` | CC/Golf R (any trim), Touareg Highline | anything not matching | Unknowns saved to state but not shown in report |
+| `get_ford_lariat.py` | Lariat (F-150/F-250/F-350) | any other trim | **Classifies on Kenny's style field, not NHTSA** — see below |
 | `get_my_cars.py` | any trim | — | |
 
-NHTSA is preferred. The full trim string is scanned — a phrase match anywhere counts, including within comma-separated ranges (e.g. `HIGHLINE` in `TRENDLINE, HIGHLINE` is a hit). Kenny's style string is used as a fallback only when NHTSA returns nothing. For VW specifically, Kenny's style field contains engine/body info rather than trim names, so the fallback rarely triggers.
+NHTSA is preferred (except Ford F-series). The full trim string is scanned — a phrase match anywhere counts, including within comma-separated ranges (e.g. `HIGHLINE` in `TRENDLINE, HIGHLINE` is a hit). Kenny's style string is used as a fallback only when NHTSA returns nothing. For VW specifically, Kenny's style field contains engine/body info rather than trim names, so the fallback rarely triggers.
 
 ---
 
@@ -94,6 +97,14 @@ Models not in the table go straight to the wrong bucket. Unknowns (target model 
 
 Kenny's style field for VW contains engine/body info (e.g. `4DR SDN 2.5L MANUAL SE`), not the marketing trim name — the NHTSA VIN decoder is the only reliable source. When NHTSA returns only a drivetrain descriptor like `4MOTION` with no trim info, the vehicle lands in "unknown".
 
+### Ford F-Series (2000+)
+
+| Model | Confirmed when… |
+|---|---|
+| F-150, F-250, F-350 | Kenny style field contains `LARIAT` |
+
+**Ford is the opposite of VW/Audi:** the NHTSA VIN decoder does *not* carry the marketing trim (Lariat/XLT/XL/King Ranch/Platinum). For Ford trucks NHTSA's `Trim` field returns body-style descriptors like `Styleside` / `Flare Side`, or nothing — Ford simply doesn't VIN-encode the trim line. Kenny's **style field** is the only reliable source: it reads e.g. `4WD SUPERCREW 145" LARIAT`, where the last token is the actual trim. So `get_ford_lariat.py` classifies on `trim_raw` (style) and discards `trim_nhtsa`. Only F-150/F-250/F-350 are fetched in detail; other Ford models are dropped from the slug before any detail call. A target truck with an empty style string lands in "unknown" (check in person).
+
 ---
 
 ## Kenny API quirks
@@ -102,6 +113,7 @@ Kenny's style field for VW contains engine/body info (e.g. `4DR SDN 2.5L MANUAL 
 - **Fetching by make only:** passing `model=""` to `fetch_inventory` returns all models for a brand (e.g. all Volkswagen regardless of model). The VW scanner uses this since we want any model.
 - **The `model` field in vehicle dicts comes from what you pass in,** not from the page — Kenny's inventory cards don't expose the model as a separate field. For the VW scanner, model is extracted from the slug (`volkswagen_passat_2013_kup-st-aug_123` → `Passat`).
 - **NHTSA rate:** the decoder is free with no auth; 0.3–0.4 s sleeps between calls are enough to avoid issues.
+- **NHTSA has no Ford truck trim:** for F-series VINs the `Trim`/`Series` fields return body-style words (`Styleside`) or nothing — Ford doesn't VIN-encode Lariat/XLT/XL. Use Kenny's style field instead.
 
 ---
 
@@ -130,6 +142,12 @@ Kenny's style field for VW contains engine/body info (e.g. `4DR SDN 2.5L MANUAL 
 | CC, Golf R | 2014+ | Any trim |
 | Touareg | 2014+ | Highline only |
 
+## Ford Lariat coverage
+
+| Models | Years | Notes |
+|---|---|---|
+| F-150, F-250, F-350 | 2000+ | Lariat trim; matched on Kenny style field, not NHTSA |
+
 ## My Cars coverage
 
 | Vehicle | Generation |
@@ -149,6 +167,7 @@ Kenny's style field for VW contains engine/body info (e.g. `4DR SDN 2.5L MANUAL 
 | `my_cars_state.json` | Last My Cars scan result |
 | `audi_xenon_state.json` | Last Audi scan result |
 | `volkswagen_xenon_state.json` | Last VW scan result |
+| `ford_lariat_state.json` | Last Ford Lariat scan result |
 
 ---
 
