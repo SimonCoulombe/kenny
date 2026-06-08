@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-Reads state files from the three scanner scripts and generates a combined HTML report.
+Reads state files from the scanner scripts and generates a combined HTML report.
+Only confirmed matches are rendered — vehicles whose trim could not be read
+("unknown") are saved to state but deliberately kept out of the report.
 Prints HTML to stdout (redirect to report.html or pipe to mail).
 """
 
@@ -40,13 +42,10 @@ def _subsection(heading: str, color: str, vehicles: list[dict], accent: str, sho
 def lanewatch_section() -> str:
     data = json.loads(LANEWATCH_STATE.read_text()) if LANEWATCH_STATE.exists() else {}
     confirmed = data.get("confirmed", [])
-    unknown   = data.get("unknown",   [])
 
     content = ""
     if confirmed:
         content += _subsection("✓ Confirmed LaneWatch", "#16a34a", confirmed, "#16a34a", True)
-    if unknown:
-        content += _subsection("? Trim unknown — check in person", "#d97706", unknown, "#d97706", False)
     if not content:
         content = NONE_FOUND
 
@@ -56,13 +55,10 @@ def lanewatch_section() -> str:
 def audi_section() -> str:
     data = json.loads(AUDI_STATE.read_text()) if AUDI_STATE.exists() else {}
     confirmed = data.get("confirmed", [])
-    unknown   = data.get("unknown",   [])
 
     content = ""
     if confirmed:
         content += _subsection("✓ Confirmed — Premium Plus / Prestige", "#16a34a", confirmed, "#16a34a", True)
-    if unknown:
-        content += _subsection("? Trim unknown — check VIN at yard", "#d97706", unknown, "#d97706", True)
     if not content:
         content = NONE_FOUND
 
@@ -85,13 +81,10 @@ def vw_section() -> str:
 def ford_section() -> str:
     data = json.loads(FORD_STATE.read_text()) if FORD_STATE.exists() else {}
     confirmed = data.get("confirmed", [])
-    unknown   = data.get("unknown",   [])
 
     content = ""
     if confirmed:
         content += _subsection("✓ Confirmed Lariat", "#16a34a", confirmed, "#16a34a", True)
-    if unknown:
-        content += _subsection("? Trim unknown — check in person", "#d97706", unknown, "#d97706", True)
     if not content:
         content = NONE_FOUND
 
@@ -101,13 +94,10 @@ def ford_section() -> str:
 def escape_section() -> str:
     data = json.loads(ESCAPE_STATE.read_text()) if ESCAPE_STATE.exists() else {}
     confirmed = data.get("confirmed", [])
-    unknown   = data.get("unknown",   [])
 
     content = ""
     if confirmed:
         content += _subsection("✓ Confirmed Titanium / Limited", "#16a34a", confirmed, "#16a34a", True)
-    if unknown:
-        content += _subsection("? Trim unknown — check in person", "#d97706", unknown, "#d97706", True)
     if not content:
         content = NONE_FOUND
 

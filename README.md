@@ -59,7 +59,7 @@ Each scanner script:
 3. Decodes the VIN via NHTSA to get the actual trim level
 4. Classifies the vehicle and saves results to its state file
 
-`generate_report.py` reads all the scanner state files and produces a single HTML report.
+`generate_report.py` reads all the scanner state files and produces a single HTML report. Only **confirmed** matches are shown — vehicles whose trim couldn't be read ("unknown") are saved to state but kept out of the report, so you never chase a maybe.
 
 ### Trim classification
 
@@ -106,7 +106,7 @@ Kenny's style field for VW contains engine/body info (e.g. `4DR SDN 2.5L MANUAL 
 |---|---|
 | F-150, F-250, F-350 | Kenny style field contains `LARIAT` |
 
-**Ford is the opposite of VW/Audi:** the NHTSA VIN decoder does *not* carry the marketing trim (Lariat/XLT/XL/King Ranch/Platinum). For Ford trucks NHTSA's `Trim` field returns body-style descriptors like `Styleside` / `Flare Side`, or nothing — Ford simply doesn't VIN-encode the trim line. Kenny's **style field** is the only reliable source: it reads e.g. `4WD SUPERCREW 145" LARIAT`, where the last token is the actual trim. So `get_ford_lariat.py` classifies on `trim_raw` (style) and discards `trim_nhtsa`. Only F-150/F-250/F-350 are fetched in detail; other Ford models are dropped from the slug before any detail call. A target truck with an empty style string lands in "unknown" (check in person).
+**Ford is the opposite of VW/Audi:** the NHTSA VIN decoder does *not* carry the marketing trim (Lariat/XLT/XL/King Ranch/Platinum). For Ford trucks NHTSA's `Trim` field returns body-style descriptors like `Styleside` / `Flare Side`, or nothing — Ford simply doesn't VIN-encode the trim line. Kenny's **style field** is the only reliable source: it reads e.g. `4WD SUPERCREW 145" LARIAT`, where the last token is the actual trim. So `get_ford_lariat.py` classifies on `trim_raw` (style) and discards `trim_nhtsa`. Only F-150/F-250/F-350 are fetched in detail; other Ford models are dropped from the slug before any detail call. A target truck with an empty style string lands in "unknown" and is kept out of the report.
 
 **Note this is truck-specific.** The Ford *Escape* — unlike the F-series — *does* have its trim in NHTSA, and NHTSA agrees with Kenny's style field (both read `TITANIUM` / `LIMITED`). So `get_ford_escape.py` checks both sources rather than relying on style alone.
 
